@@ -1,34 +1,192 @@
 package com.example.creditservice;
 
+import com.example.creditservice.api.ErrorDataResponse;
+import com.example.creditservice.api.OrderStatusRequest;
+import com.example.creditservice.api.OrderStatusResponse;
 import com.example.creditservice.api.Specifications;
+import com.example.creditservice.model.request.AuthenticationRequest;
+import com.example.creditservice.model.request.CreateOrder;
+import com.example.creditservice.model.request.DeleteOrder;
+import com.example.creditservice.model.response.AuthenticationResponse;
+import com.example.creditservice.model.response.DataResponse;
+import com.example.creditservice.model.response.DataResponseLoanOrder;
+import com.example.creditservice.model.tariff.Tariff;
+import io.restassured.http.ContentType;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.util.List;
+import java.util.UUID;
+
 import static io.restassured.RestAssured.given;
 
 @SpringBootTest
-class CreditServiceApplicationTests {
-    private final static String BASE_URL = "https://localhost:8080";
+public class CreditServiceApplicationTests {
+    private final static String BASE_URL = "http://localhost:8080";
 
+    /**
+     * Метод получения тарифов
+     */
     @Test
     public void checkGetUserTest() {
         Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
                 Specifications.responseSpecOK200());
-        UserData user = given()
+
+        List<Tariff> tariffs = given()
                 .when()
-                .get("/api/users/2")
-                .then().log().all()
-                .extract().body().jsonPath().getObject("data", UserData.class);
+                .get("/loan-service/getTariffs")
+                .then()
+                .log().all()
+                .extract().body().jsonPath().getList("data.tariffs", Tariff.class);
 
         // Проверка модели ответа
-        Assert.assertNotNull(user.getId());
-        Assert.assertNotNull(user.getEmail());
-        Assert.assertNotNull(user.getFirst_name());
-        Assert.assertNotNull(user.getLast_name());
-        Assert.assertNotNull(user.getAvatar());
+        Assert.assertNotNull(tariffs.get(0).getType());
+        Assert.assertNotNull(tariffs.get(0).getInterestRate());
+    }
 
-        // Проверка бизнес-модели
-        Assert.assertTrue(user.getAvatar().contains(user.getId().toString()));
+    /**
+     * Метод подачи заявки на кредит
+     */
+    @Test
+    public void testOrderingLoanService() {
+        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+                Specifications.responseSpecOK200());
+        String bearerToken = authentication("ivanov@mail.ru", "1234");
+        CreateOrder orderDetails = new CreateOrder();
+        orderDetails.setUserId(1);
+        orderDetails.setTariffId(1);
+        DataResponseLoanOrder order = given()
+                .headers(
+                        "Authorization",
+                        "Bearer " + bearerToken,
+                        "Content-Type",
+                        ContentType.JSON,
+                        "Accept",
+                        ContentType.JSON)
+                .body(orderDetails).when().post("/loan-service/order")
+                .then().log().all()
+                .extract().body().jsonPath().getObject("data", DataResponseLoanOrder.class);
+        Assert.assertNotNull(order.getOrderId());
+
+    }
+
+    private String authentication(String email, String password) {
+        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+                Specifications.responseSpecOK200());
+        AuthenticationRequest authReq = new AuthenticationRequest(email, password);
+        AuthenticationResponse request = given().body(authReq).when().post("/auth/authenticate").then().log().all()
+                .extract().as(AuthenticationResponse.class);
+
+        return request.getToken();
+    }
+
+    /**
+     * Негативный сценарий - отправка двух запросов
+     */
+    @Test
+    public void testNegativeOrderingLoanService() {
+        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+                Specifications.responseSpecBADREQUEST400());
+        String bearerToken = authentication("ivanov@mail.ru", "1234");
+        CreateOrder orderDetails = new CreateOrder();
+        orderDetails.setUserId(1);
+        orderDetails.setTariffId(3);
+        DataResponseLoanOrder order1 = given()
+                .headers(
+                        "Authorization",
+                        "Bearer " + bearerToken,
+                        "Content-Type",
+                        ContentType.JSON,
+                        "Accept",
+                        ContentType.JSON)
+                .body(orderDetails).when().post("/loan-service/order")
+                .then().log().all()
+                .extract().body().jsonPath().getObject("data", DataResponseLoanOrder.class);
+        Assert.assertNotNull(order1.getOrderId());
+
+        ErrorDataResponse order2 = given()
+                .headers(
+                        "Authorization",
+                        "Bearer " + bearerToken,
+                        "Content-Type",
+                        ContentType.JSON,
+                        "Accept",
+                        ContentType.JSON)
+                .body(orderDetails).when().post("/loan-service/order")
+                .then().log().all()
+                .extract().body().jsonPath().getObject("error", ErrorDataResponse.class);
+        Assert.assertNotNull(order1.getOrderId());
+    }
+    /**
+     * Метод удаления заявки
+     */
+    @Test
+    public void testDeleteLoanRequest(){
+        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+                Specifications.responseSpecOK200());
+        String bearerToken = authentication("ivanov@mail.ru", "1234");
+        DeleteOrder deleteOrder = new DeleteOrder();
+        deleteOrder.setUserId(1);
+        deleteOrder.setOrderId(UUID.fromString("5ca0aedc-6911-408f-bc6a-300c5f2d77f5"));
+        given()
+                .headers(
+                "Authorization",
+                "Bearer " + bearerToken,
+                "Content-Type",
+                ContentType.JSON,
+                "Accept",
+                ContentType.JSON)
+                .body(deleteOrder).when().delete("/loan-service/deleteOrder").then().log().all();
+    }
+
+    /**
+     * Негативный метод удаления заявки
+     */
+    @Test
+    public void testNegativeDeleteLoanRequest(){
+        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+                Specifications.responseSpecBADREQUEST400());
+        String bearerToken = authentication("ivanov@mail.ru", "1234");
+        DeleteOrder deleteOrder = new DeleteOrder();
+        deleteOrder.setUserId(1);
+        deleteOrder.setOrderId(UUID.fromString("5ca0aedc-6911-408f-bc6a-300c5f2d77f5"));
+        ErrorDataResponse errorDataResponse = given()
+                .headers(
+                        "Authorization",
+                        "Bearer " + bearerToken,
+                        "Content-Type",
+                        ContentType.JSON,
+                        "Accept",
+                        ContentType.JSON)
+                .body(deleteOrder).when().contentType(ContentType.JSON).delete("/loan-service/deleteOrder").then().statusCode(400).log().all()
+                .extract().body().jsonPath().getObject("error", ErrorDataResponse.class);
+        Assert.assertNotNull(errorDataResponse.getCode());
+        Assert.assertNotNull(errorDataResponse.getMessage());
+    }
+
+    /**
+     * Метод получения статуса заявки
+     */
+    @Test
+    public void testGetOrderStatus(){
+        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+                Specifications.responseSpecOK200());
+        String bearerToken = authentication("ivanov@mail.ru", "1234");
+        OrderStatusRequest orderStatusRequest = new OrderStatusRequest(UUID.fromString("5ca0aedc-6911-408f-bc6a-300c5f2d77f5"));
+        DataResponse orderStatusResponse = given()
+                .headers(
+                        "Authorization",
+                        "Bearer " + bearerToken,
+                        "Content-Type",
+                        ContentType.JSON,
+                        "Accept",
+                        ContentType.JSON)
+                .when()
+                .get("/loan-service/getStatusOrder?orderId="+orderStatusRequest.getOrderId())
+                .then().log().all()
+                .extract().body().jsonPath().getObject("data.orderStatus", DataResponse.class);
+        Assert.assertNotNull(orderStatusResponse.getData());
+
     }
 }
