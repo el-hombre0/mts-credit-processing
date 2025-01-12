@@ -1,0 +1,66 @@
+databaseChangeLog:
+  - changeSet:
+      id: LOAN-ORDER
+      author: artemSlu
+      changes:
+        - createTable:
+            tableName: loan_order
+            columns:
+              - column:
+                  name: id
+                  type: integer
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: loan_order_pk
+                    nullable: false
+              - column:
+                  name: order_id
+                  type: varchar(50)
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: integer
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tariff_id
+                  type: integer
+                  constraints:
+                    nullable: false
+              - column:
+                  name: credit_rating
+                  type: double
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: time_insert
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: time_update
+                  type: timestamp
+
+        - addForeignKeyConstraint:
+            baseColumnNames: tariff_id
+            baseTableName: loan_order
+            referencedTableName: tariff
+            referencedColumnNames: id
+            constraintName: constraint_tariff
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseColumnNames: user_id
+            baseTableName: loan_order
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: constraint_users
+            onDelete: CASCADE

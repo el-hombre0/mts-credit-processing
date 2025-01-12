@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: TARIFF
+      author: artemSlu
+      changes:
+        - createTable:
+            tableName: tariff
+            columns:
+              - column:
+                  name: id
+                  type: integer
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: tariff_pk
+                    nullable: false
+              - column:
+                  name: type
+                  type: varchar(50)
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: interest_rate
+                  type: varchar(50)
+                  constraints:
+                    unique: false
+                    nullable: false

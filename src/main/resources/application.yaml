@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/mts-credit
+    username: user
+    password: 1234
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yml
