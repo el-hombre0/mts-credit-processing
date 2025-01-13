@@ -6,14 +6,8 @@ import com.example.creditservice.model.request.CreateOrder;
 import com.example.creditservice.model.request.DeleteOrder;
 import com.example.creditservice.model.request.RegisterRequest;
 import com.example.creditservice.model.response.AuthenticationResponse;
-import com.example.creditservice.model.response.DataResponse;
-import com.example.creditservice.model.response.DataResponseLoanOrder;
-import com.example.creditservice.model.response.DataResponseStatus;
 import com.example.creditservice.model.tariff.Tariff;
-import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
-import io.restassured.response.Response;
-import io.restassured.specification.RequestSpecification;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,7 +19,7 @@ import java.util.UUID;
 import static io.restassured.RestAssured.given;
 
 @SpringBootTest
-public class CreditServiceApplicationTests {
+public class RegressTestSuit {
     private final static String BASE_URL = "http://localhost:8080";
     private final static String ADMIN_LOGIN = "ivanov@mail.ru";
     private final static String ADMIN_PASSWORD = "1234";
@@ -34,6 +28,7 @@ public class CreditServiceApplicationTests {
     private final int loanOrderAdminUserId = 1;
     private final int loanOrderUserUserId = 2;
     private final static int loanOrderTariffId = 1;
+
     /**
      * Метод получения тарифов
      */
@@ -94,7 +89,7 @@ public class CreditServiceApplicationTests {
                 Specifications.responseSpecOK200());
         String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
         CreateOrder orderDetails = new CreateOrder();
-        orderDetails.setUserId(3);
+        orderDetails.setUserId(2);
         orderDetails.setTariffId(loanOrderTariffId);
         DataResponseLoanOrderS order = given()
                 .headers(
@@ -112,26 +107,22 @@ public class CreditServiceApplicationTests {
     }
 
     /**
-     * Негативный сценарий - отправка двух запросов
+     * Негативный сценарий - отправка двух запросов на получение кредита
      */
 //    @Negative
     @Test(expected = java.lang.AssertionError.class)
     public void testNegativeOrderingLoanService() {
         Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
                 Specifications.responseSpecBADREQUEST400());
-//        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
-//        CreateOrder orderDetails = new CreateOrder();
-//        orderDetails.setUserId(3);
-//        orderDetails.setTariffId(loanOrderTariffId);
         // Первый заказ
-        DataResponseLoanOrderS order1 = orderLoan(4, loanOrderTariffId);
+        DataResponseLoanOrderS order1 = orderLoan(2, loanOrderTariffId + 1);
         Assert.assertNotNull(order1.getOrderId());
 
 //        DataResponseLoanOrderS order2 = orderLoan(4, loanOrderTariffId);
         String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
         CreateOrder orderDetails = new CreateOrder();
-        orderDetails.setUserId(4);
-        orderDetails.setTariffId(loanOrderTariffId);
+        orderDetails.setUserId(2);
+        orderDetails.setTariffId(loanOrderTariffId + 1);
         // Второй заказ с такими же параметрами
         ErrorDataResponse order2 = given()
                 .headers(
@@ -161,10 +152,10 @@ public class CreditServiceApplicationTests {
         DataResponseLoanOrderS order = orderLoan(loanOrderUserUserId, loanOrderTariffId);
 
         // Аутентификация пользователя
-         String bearerToken = authentication(USER_LOGIN, USER_PASSWORD);
+        String bearerToken = authentication(USER_LOGIN, USER_PASSWORD);
 
-         // Проверка статуса заказа
-         DataResponseStatusS orderStatusResponse = given()
+        // Проверка статуса заказа
+        DataResponseStatusS orderStatusResponse = given()
                 .headers(
                         "Authorization",
                         "Bearer " + bearerToken,
@@ -179,8 +170,9 @@ public class CreditServiceApplicationTests {
         Assert.assertNotNull(orderStatusResponse.getOrderStatus());
 
     }
+
     /**
-     * Метод ошибки получения статуса заявки
+     * Негативный метод получения статуса заявки по несуществующему UUID
      */
     @Test(expected = java.lang.AssertionError.class)
     public void testNegativeGetOrderStatus() {
@@ -213,11 +205,11 @@ public class CreditServiceApplicationTests {
         Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
                 Specifications.responseSpecOK200());
         // Создание заказа
-        UUID orderId = orderLoan(loanOrderUserUserId, loanOrderTariffId).getOrderId();
+        UUID orderId = orderLoan(loanOrderUserUserId, loanOrderTariffId+2).getOrderId();
 
         String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
         DeleteOrder deleteOrder = new DeleteOrder();
-        deleteOrder.setUserId(loanOrderUserUserId);
+        deleteOrder.setUserId(loanOrderUserUserId+2);
         deleteOrder.setOrderId(orderId);
         given()
                 .headers(
@@ -231,7 +223,7 @@ public class CreditServiceApplicationTests {
     }
 
     /**
-     * Негативный метод удаления заявки
+     * Негативный метод удаления заявки по несуществующему UUID
      */
     @Test(expected = java.lang.AssertionError.class)
     public void testNegativeDeleteLoanRequest() {
@@ -250,7 +242,45 @@ public class CreditServiceApplicationTests {
         Assert.assertNotNull(errorDataResponse.getMessage());
     }
 
+    /**
+     * Метод добавления нового тарифа
+     */
+    @Test
+    public void testAddTariff() {
+        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+                Specifications.responseSpecOK200());
+        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
+        TariffRequest tariffRequest = new TariffRequest("NEW_TYPE", "13.5%");
+        given().headers("Authorization", "Bearer " + bearerToken).body(tariffRequest)
+                .when().post("/loan-service/addTariff")
+                .then().log().all();
+    }
 
+    /**
+     * Негативный метод добавления нового тарифа, добавление двух одинаковых типов
+     */
+    @Test
+    public void testNegativeAddTariff(){
+        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+                Specifications.responseSpecBADREQUEST400());
+        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
+        TariffRequest tariffRequest = new TariffRequest("NEW_TYPE11", "13.5%");
+        given().headers("Authorization", "Bearer " + bearerToken).body(tariffRequest)
+                .when().post("/loan-service/addTariff")
+                .then().log().all();
+
+        TariffRequest tariffRequest2 = new TariffRequest("NEW_TYPE11", "13.5%");
+        given().headers("Authorization", "Bearer " + bearerToken).body(tariffRequest2)
+                .when().post("/loan-service/addTariff")
+                .then().log().all();
+    }
+
+    /**
+     * Сервисный метод аутентификации
+     * @param email электронная почта пользователя
+     * @param password пароль пользователя
+     * @return JWT аутентификации
+     */
     private String authentication(String email, String password) {
         Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
                 Specifications.responseSpecOK200());
@@ -261,7 +291,13 @@ public class CreditServiceApplicationTests {
         return request.getToken();
     }
 
-    private DataResponseLoanOrderS orderLoan(long userId, long tariffId){
+    /**
+     * Сервисный метод создания заявки на кредит
+     * @param userId Идентификатор пользователя
+     * @param tariffId Идентификатор тарифа
+     * @return Объект, содержащий UUID заявки
+     */
+    private DataResponseLoanOrderS orderLoan(long userId, long tariffId) {
         String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
         CreateOrder orderDetails = new CreateOrder();
         orderDetails.setUserId(userId);
