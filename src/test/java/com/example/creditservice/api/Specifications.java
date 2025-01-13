@@ -24,6 +24,10 @@ public class Specifications {
         return new ResponseSpecBuilder().expectStatusCode(400).build();
     }
 
+    public static ResponseSpecification responseSpecFORBIDDEN403() {
+        return new ResponseSpecBuilder().expectStatusCode(403).build();
+    }
+
     public static ResponseSpecification responseSpecUnique(int status) {
         return new ResponseSpecBuilder().expectStatusCode(status).build();
     }
