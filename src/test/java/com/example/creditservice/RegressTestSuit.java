@@ -1,6 +1,10 @@
 package com.example.creditservice;
 
 import com.example.creditservice.api.*;
+import com.example.creditservice.api.enums.ErrorCodes;
+import com.example.creditservice.api.enums.IntConsts;
+import com.example.creditservice.api.enums.StrConsts;
+import com.example.creditservice.model.enums.OrderStatus;
 import com.example.creditservice.model.request.AuthenticationRequest;
 import com.example.creditservice.model.request.CreateOrder;
 import com.example.creditservice.model.request.DeleteOrder;
@@ -8,33 +12,29 @@ import com.example.creditservice.model.request.RegisterRequest;
 import com.example.creditservice.model.response.AuthenticationResponse;
 import com.example.creditservice.model.tariff.Tariff;
 import io.restassured.http.ContentType;
-import org.junit.Assert;
-import org.junit.Test;
+import jdk.jfr.Description;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.boot.test.context.SpringBootTest;
 
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
 import static io.restassured.RestAssured.given;
 
 @SpringBootTest
-public class RegressTestSuit {
-    private final static String BASE_URL = "http://localhost:8080";
-    private final static String ADMIN_LOGIN = "ivanov@mail.ru";
-    private final static String ADMIN_PASSWORD = "1234";
-    private final static String USER_LOGIN = "petrov@gmail.com";
-    private final static String USER_PASSWORD = "1q2w3e4r";
-    private final int loanOrderAdminUserId = 1;
-    private final int loanOrderUserUserId = 2;
-    private final static int loanOrderTariffId = 1;
+class RegressTestSuit extends BaseTest{
 
-    /**
-     * Метод получения тарифов
-     */
     @Test
-    public void testGetTariffs() {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+    @Description("Проверка получения тарифов, их наличие в ответе и правильного кода ответа")
+    @DisplayName("Получение тарифов")
+    void testGetTariffs() {
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
                 Specifications.responseSpecOK200());
 
         List<Tariff> tariffs = given()
@@ -45,52 +45,58 @@ public class RegressTestSuit {
                 .extract().body().jsonPath().getList("data.tariffs", Tariff.class);
 
         // Проверка модели ответа
-        Assert.assertNotNull(tariffs.get(0).getType());
-        Assert.assertNotNull(tariffs.get(0).getInterestRate());
+        Assertions.assertNotNull(tariffs.get(0).getType());
+        Assertions.assertNotNull(tariffs.get(0).getInterestRate());
     }
 
-    /**
-     * Тест аутентификации
-     */
+
     @Test
-    public void testAuthentication() {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+    @Description("Проверка выполнения аутентификации по данным администратора, наличие токена в ответе и правильного кода ответа")
+    @DisplayName("Аутентификация")
+    void testAuthentication() {
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
                 Specifications.responseSpecOK200());
-        AuthenticationRequest authReq = new AuthenticationRequest(ADMIN_LOGIN, ADMIN_PASSWORD);
+        AuthenticationRequest authReq = new AuthenticationRequest(StrConsts.ADMIN_LOGIN.toString(), StrConsts.ADMIN_PASSWORD.toString());
         AuthenticationResponse request = given().body(authReq).when().post("/auth/authenticate").then().log().all()
                 .extract().as(AuthenticationResponse.class);
 
-        Assert.assertNotNull(request.getToken());
-
+        Assertions.assertNotNull(request.getToken());
     }
 
-    /**
-     * Метод регистрации
-     */
+
     @Test
-    public void testRegistration() {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+//    @ParameterizedTest
+    @Description("Проверка выполнения регистрации нового пользователя, наличие токена в ответе и правильного кода ответа")
+    @DisplayName("Регистрация")
+//    @CsvSource({"Arsen,Gorin,gorin@gmailcom,1q2w3e4r", "Ivan,Stepanov,stepanov@mailcom,1"})
+//    void testRegistration(String firstname, String lastname, String email, String password) {
+    void testRegistration() {
+
+            Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
                 Specifications.responseSpecOK200());
-        RegisterRequest registerRequest = new RegisterRequest("Arsen", "Norin", "norin@gmail.com", "1q2w3e4r");
+//        RegisterRequest registerRequest = new RegisterRequest(firstname, lastname, email, password);
+        RegisterRequest registerRequest = new RegisterRequest("Ivan", "Ivanov", "iv@mail.ro", "123");
+
         AuthenticationResponse response = given().body(registerRequest)
                 .when().post("/auth/register")
                 .then().log().all()
                 .extract().as(AuthenticationResponse.class);
 
-        Assert.assertNotNull(response.getToken());
+        Assertions.assertNotNull(response.getToken());
     }
 
-    /**
-     * Метод подачи заявки на кредит
-     */
+
+
     @Test
-    public void testOrderingLoanService() {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+    @Description("Проверка создания новой заявки на кредит, наличие ID заказа в ответе и правильного кода ответа")
+    @DisplayName("Создание заявки на кредит")
+    void testOrderingLoanService() {
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
                 Specifications.responseSpecOK200());
-        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
+        String bearerToken = Services.authentication(StrConsts.ADMIN_LOGIN.toString(), StrConsts.ADMIN_PASSWORD.toString());
         CreateOrder orderDetails = new CreateOrder();
-        orderDetails.setUserId(2);
-        orderDetails.setTariffId(loanOrderTariffId);
+        orderDetails.setUserId(IntConsts.LOAN_ORDER_ADMIN_USER_ID.getValue());
+        orderDetails.setTariffId(IntConsts.LOAN_ORDER_TARIFF_ID.getValue());
         DataResponseLoanOrderS order = given()
                 .headers(
                         "Authorization",
@@ -102,27 +108,26 @@ public class RegressTestSuit {
                 .body(orderDetails).when().post("/loan-service/order")
                 .then().log().all()
                 .extract().body().jsonPath().getObject("data", DataResponseLoanOrderS.class);
-        Assert.assertNotNull(order.getOrderId());
+        Assertions.assertNotNull(order.getOrderId());
 
     }
 
-    /**
-     * Негативный сценарий - отправка двух запросов на получение кредита
-     */
-//    @Negative
-    @Test(expected = java.lang.AssertionError.class)
-    public void testNegativeOrderingLoanService() {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
-                Specifications.responseSpecBADREQUEST400());
-        // Первый заказ
-        DataResponseLoanOrderS order1 = orderLoan(2, loanOrderTariffId + 1);
-        Assert.assertNotNull(order1.getOrderId());
 
-//        DataResponseLoanOrderS order2 = orderLoan(4, loanOrderTariffId);
-        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
+    @Test
+    @Description("Проверка создания двух одинаковых заявок на кредит, наличие ID заказа, кода и сообщения ошибки в ответе и правильного кода ответа")
+    @DisplayName("Создание двух одинаковых заявок на кредит ")
+    void testNegativeOrderingLoanService() {
+        String bearerToken = Services.authentication(StrConsts.ADMIN_LOGIN.toString(), StrConsts.ADMIN_PASSWORD.toString());
+        // Первый заказ
+        DataResponseLoanOrderS order1 = Services.orderLoan(bearerToken, IntConsts.LOAN_ORDER_ADMIN_USER_ID.getValue(), IntConsts.LOAN_ORDER_TARIFF_ID.getValue() + 1);
+        Assertions.assertNotNull(order1.getOrderId());
+
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
+                Specifications.responseSpecBADREQUEST400());
+
         CreateOrder orderDetails = new CreateOrder();
-        orderDetails.setUserId(2);
-        orderDetails.setTariffId(loanOrderTariffId + 1);
+        orderDetails.setUserId(IntConsts.LOAN_ORDER_ADMIN_USER_ID.getValue());
+        orderDetails.setTariffId(IntConsts.LOAN_ORDER_TARIFF_ID.getValue() + 1);
         // Второй заказ с такими же параметрами
         ErrorDataResponse order2 = given()
                 .headers(
@@ -135,25 +140,25 @@ public class RegressTestSuit {
                 .body(orderDetails).when().post("/loan-service/order")
                 .then().log().all()
                 .extract().body().jsonPath().getObject("error", ErrorDataResponse.class);
-        Assert.assertNotNull(order2.getCode());
-        Assert.assertNotNull(order2.getMessage());
+        Assertions.assertNotNull(order2.getCode());
+        Assertions.assertNotNull(order2.getMessage());
 
+        Assertions.assertEquals(ErrorCodes.LOAN_CONSIDERATION.toString(), order2.getCode());
+        Assertions.assertEquals("Заявка на рассмотрении", order2.getMessage());
     }
 
 
-    /**
-     * Метод получения статуса заявки
-     */
     @Test
-    public void testGetOrderStatus() {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
-                Specifications.responseSpecOK200());
+    @Description("Проверка получения статуса заявки на оформление кредита, наличие статуса заявки в ответе и правильного кода ответа")
+    @DisplayName("Получение статуса заявки")
+    void testGetOrderStatus() {
+        String bearerToken = Services.authentication(StrConsts.ADMIN_LOGIN.toString(), StrConsts.ADMIN_PASSWORD.toString());
+
         // Создание заказа
-        DataResponseLoanOrderS order = orderLoan(loanOrderUserUserId, loanOrderTariffId);
+        DataResponseLoanOrderS order = Services.orderLoan(bearerToken, IntConsts.LOAN_ORDER_ADMIN_USER_ID.getValue(), IntConsts.LOAN_ORDER_TARIFF_ID.getValue() + 2);
 
-        // Аутентификация пользователя
-        String bearerToken = authentication(USER_LOGIN, USER_PASSWORD);
-
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
+                Specifications.responseSpecOK200());
         // Проверка статуса заказа
         DataResponseStatusS orderStatusResponse = given()
                 .headers(
@@ -167,21 +172,22 @@ public class RegressTestSuit {
                 .get("/loan-service/getStatusOrder?orderId=" + order.getOrderId())
                 .then().log().all()
                 .extract().body().jsonPath().getObject("data", DataResponseStatusS.class);
-        Assert.assertNotNull(orderStatusResponse.getOrderStatus());
-
+        Assertions.assertNotNull(orderStatusResponse.getOrderStatus());
+        Assertions.assertEquals(OrderStatus.IN_PROGRESS, orderStatusResponse.getOrderStatus());
     }
 
-    /**
-     * Негативный метод получения статуса заявки по несуществующему UUID
-     */
-    @Test(expected = java.lang.AssertionError.class)
-    public void testNegativeGetOrderStatus() {
 
-        // Аутентификация пользователя
-        String bearerToken = authentication(USER_LOGIN, USER_PASSWORD);
+    @Test
+    @Description("Проверка получения статуса заявки на оформление кредита по несуществующему UUID, наличия статуса заявки в ответе и правильного кода ответа")
+    @DisplayName("Получение статуса заявки")
+    void testNegativeGetOrderStatus() {
+        // Регистрация пользователя
+        String bearerToken = Services.registration("Ivan", "Orlov", "orlov@mail.com", "1234");
 
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
+                Specifications.responseSpecBADREQUEST400());
         // Проверка статуса заказа
-        DataResponseStatusS orderStatusResponse = given()
+        ErrorDataResponse orderStatusResponse = given()
                 .headers(
                         "Authorization",
                         "Bearer " + bearerToken,
@@ -192,25 +198,32 @@ public class RegressTestSuit {
                 .when()
                 .get("/loan-service/getStatusOrder?orderId=123e4567-e89b-42d3-a456-556642440000")
                 .then().log().all()
-                .extract().body().jsonPath().getObject("data", DataResponseStatusS.class);
-        Assert.assertNotNull(orderStatusResponse.getOrderStatus());
+                .extract().body().jsonPath().getObject("error", ErrorDataResponse.class);
+        Assertions.assertNotNull(orderStatusResponse.getCode());
+        Assertions.assertNotNull(orderStatusResponse.getMessage());
 
+        Assertions.assertEquals(ErrorCodes.ORDER_NOT_FOUND.toString(), orderStatusResponse.getCode());
+        Assertions.assertEquals("Заявка не найдена", orderStatusResponse.getMessage());
     }
 
-    /**
-     * Метод удаления заявки
-     */
-    @Test
-    public void testDeleteLoanRequest() {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
-                Specifications.responseSpecOK200());
-        // Создание заказа
-        UUID orderId = orderLoan(loanOrderUserUserId, loanOrderTariffId+2).getOrderId();
 
-        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
+    @Test
+    @Description("Проверка удаления заявки на оформление кредита и правильного кода ответа")
+    @DisplayName("Удаление заявки на кредит")
+    void testDeleteLoanRequest() {
+        String bearerToken = Services.authentication(StrConsts.ADMIN_LOGIN.toString(), StrConsts.ADMIN_PASSWORD.toString());
+
+        // Создание нового тарифа
+        Services.tariffCreation(bearerToken, "DOUBLE_RATE", "20%");
+
+        // Создание заказа
+        UUID orderId = Services.orderLoan(bearerToken, IntConsts.LOAN_ORDER_ADMIN_USER_ID.getValue(), IntConsts.ADDED_TARIFF_ID.getValue()).getOrderId();
+
         DeleteOrder deleteOrder = new DeleteOrder();
-        deleteOrder.setUserId(loanOrderUserUserId+2);
+        deleteOrder.setUserId(IntConsts.LOAN_ORDER_ADMIN_USER_ID.getValue());
         deleteOrder.setOrderId(orderId);
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
+                Specifications.responseSpecOK200());
         given()
                 .headers(
                         "Authorization",
@@ -222,96 +235,63 @@ public class RegressTestSuit {
                 .body(deleteOrder).when().delete("/loan-service/deleteOrder").then().log().all();
     }
 
-    /**
-     * Негативный метод удаления заявки по несуществующему UUID
-     */
-    @Test(expected = java.lang.AssertionError.class)
-    public void testNegativeDeleteLoanRequest() {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+
+    @Test
+    @Description("Проверка удаления заявки на оформление кредита по несуществующему UUID, наличия верных кода ошибки и сообщения и правильного кода ответа")
+    @DisplayName("Удаление несуществующей заявки")
+    void testNegativeDeleteLoanRequest() {
+        String bearerToken = Services.authentication(StrConsts.ADMIN_LOGIN.toString(), StrConsts.ADMIN_PASSWORD.toString());
+
+        // Описание заявки на удаление
+        DeleteOrder deleteOrder = new DeleteOrder();
+        deleteOrder.setUserId(IntConsts.LOAN_ORDER_ADMIN_USER_ID.getValue());
+        deleteOrder.setOrderId(UUID.fromString("123e4567-e89b-42d3-a456-556642440000"));
+
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
                 Specifications.responseSpecBADREQUEST400());
 
-        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
-        DeleteOrder deleteOrder = new DeleteOrder();
-        deleteOrder.setUserId(loanOrderAdminUserId);
-        deleteOrder.setOrderId(UUID.fromString("123e4567-e89b-42d3-a456-556642440000"));
         ErrorDataResponse errorDataResponse = given()
                 .headers("Authorization", "Bearer " + bearerToken)
                 .body(deleteOrder).when().delete("/loan-service/deleteOrder").then().log().all()
                 .extract().body().jsonPath().getObject("error", ErrorDataResponse.class);
-        Assert.assertNotNull(errorDataResponse.getCode());
-        Assert.assertNotNull(errorDataResponse.getMessage());
+        Assertions.assertNotNull(errorDataResponse.getCode());
+        Assertions.assertNotNull(errorDataResponse.getMessage());
+
+        Assertions.assertEquals(ErrorCodes.ORDER_NOT_FOUND.toString(), errorDataResponse.getCode());
+        Assertions.assertEquals("Заявка не найдена", errorDataResponse.getMessage());
     }
 
-    /**
-     * Метод добавления нового тарифа
-     */
+
     @Test
-    public void testAddTariff() {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
+    @Description("Проверка добавления нового тарифа и правильного кода ответа")
+    @DisplayName("Добавление тарифа")
+    void testAddTariff() {
+        String bearerToken = Services.authentication(StrConsts.ADMIN_LOGIN.toString(), StrConsts.ADMIN_PASSWORD.toString());
+
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
                 Specifications.responseSpecOK200());
-        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
+
         TariffRequest tariffRequest = new TariffRequest("NEW_TYPE", "13.5%");
         given().headers("Authorization", "Bearer " + bearerToken).body(tariffRequest)
                 .when().post("/loan-service/addTariff")
                 .then().log().all();
     }
 
-    /**
-     * Негативный метод добавления нового тарифа, добавление двух одинаковых типов
-     */
-    @Test
-    public void testNegativeAddTariff(){
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
-                Specifications.responseSpecBADREQUEST400());
-        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
-        TariffRequest tariffRequest = new TariffRequest("NEW_TYPE11", "13.5%");
-        given().headers("Authorization", "Bearer " + bearerToken).body(tariffRequest)
-                .when().post("/loan-service/addTariff")
-                .then().log().all();
 
-        TariffRequest tariffRequest2 = new TariffRequest("NEW_TYPE11", "13.5%");
+    @Test
+    @Description("Проверка добавления двух одинаковых тарифов и правильного кода ответа")
+    @DisplayName("Добавление двух одинаковых тарифов")
+    void testNegativeAddTariff() {
+        String bearerToken = Services.authentication(StrConsts.ADMIN_LOGIN.toString(), StrConsts.ADMIN_PASSWORD.toString());
+        Services.tariffCreation(bearerToken, "SOCIAL+", "7.7%");
+
+        TariffRequest tariffRequest2 = new TariffRequest("SOCIAL+", "7.7%");
+
+        Specifications.installSpecification(Specifications.requestSpec(StrConsts.BASE_URL.toString()),
+                Specifications.responseSpecBADREQUEST400());
+
         given().headers("Authorization", "Bearer " + bearerToken).body(tariffRequest2)
                 .when().post("/loan-service/addTariff")
                 .then().log().all();
-    }
-
-    /**
-     * Сервисный метод аутентификации
-     * @param email электронная почта пользователя
-     * @param password пароль пользователя
-     * @return JWT аутентификации
-     */
-    private String authentication(String email, String password) {
-        Specifications.installSpecification(Specifications.requestSpec(BASE_URL),
-                Specifications.responseSpecOK200());
-        AuthenticationRequest authReq = new AuthenticationRequest(email, password);
-        AuthenticationResponse request = given().body(authReq).when().post("/auth/authenticate").then().log().all()
-                .extract().as(AuthenticationResponse.class);
-
-        return request.getToken();
-    }
-
-    /**
-     * Сервисный метод создания заявки на кредит
-     * @param userId Идентификатор пользователя
-     * @param tariffId Идентификатор тарифа
-     * @return Объект, содержащий UUID заявки
-     */
-    private DataResponseLoanOrderS orderLoan(long userId, long tariffId) {
-        String bearerToken = authentication(ADMIN_LOGIN, ADMIN_PASSWORD);
-        CreateOrder orderDetails = new CreateOrder();
-        orderDetails.setUserId(userId);
-        orderDetails.setTariffId(tariffId);
-        return given()
-                .headers(
-                        "Authorization",
-                        "Bearer " + bearerToken,
-                        "Content-Type",
-                        ContentType.JSON,
-                        "Accept",
-                        ContentType.JSON)
-                .body(orderDetails).when().post("/loan-service/order")
-                .then().log().all()
-                .extract().body().jsonPath().getObject("data", DataResponseLoanOrderS.class);
     }
 }
